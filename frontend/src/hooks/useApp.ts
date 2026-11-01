@@ -29,6 +29,8 @@ interface AppState {
   ask: (question: string) => Promise<void>;
   stop: () => void;
   generateReport: (pages: number) => Promise<void>;
+  deleteRun: (id: string) => Promise<void>;
+  deleteAllRuns: () => Promise<void>;
 }
 
 function applyStep(steps: Step[], step: Step): Step[] {
@@ -154,6 +156,22 @@ export const useApp = create<AppState>((set, get) => {
       get().controller?.abort();
       updateView({ status: "stopped", message: "Research stopped. Your credit was returned." });
       set({ controller: null });
+    },
+    deleteRun: async (id) => {
+      await api.deleteRun(id);
+      set((state) => ({
+        runs: state.runs.filter((run) => run.id !== id),
+        view: state.view?.runId === id ? null : state.view,
+      }));
+    },
+    deleteAllRuns: async () => {
+      await api.deleteAllRuns();
+      const runs = await api.runs();
+      // Research still in progress is kept on the server, so it stays on screen too.
+      set((state) => {
+        const busy = state.view?.status === "streaming" || state.view?.report?.status === "generating";
+        return { runs, view: busy ? state.view : null };
+      });
     },
     generateReport: async (pages) => {
       const { view } = get();

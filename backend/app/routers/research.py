@@ -174,6 +174,19 @@ def _owned_run(settings: Settings, run_id: str, user_id: str) -> sqlite3.Row:
     return row
 
 
+@router.delete("")
+def delete_all_research(settings: SettingsDep, user: CurrentUser) -> dict[str, int]:
+    """Delete the user's finished research. Used credits are not returned."""
+    return {"deleted": runs.delete_all_runs(settings, user["id"])}
+
+
+@router.delete("/{run_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_research(run_id: str, settings: SettingsDep, user: CurrentUser) -> None:
+    _owned_run(settings, run_id, user["id"])
+    if not runs.delete_run(settings, run_id, user["id"]):
+        raise HTTPException(status.HTTP_409_CONFLICT, "This research is still in progress. Please try again when it finishes.")
+
+
 @router.get("/{run_id}")
 def get_research(run_id: str, settings: SettingsDep, user: CurrentUser) -> RunDetail:
     return runs.to_detail(settings, _owned_run(settings, run_id, user["id"]))

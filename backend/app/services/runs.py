@@ -4,6 +4,7 @@ import json
 import sqlite3
 import time
 import uuid
+from pathlib import Path
 
 from app.config import Settings
 from app.db import connect
@@ -157,3 +158,36 @@ def fail_report(settings: Settings, run_id: str) -> None:
             "UPDATE runs SET report_status = CASE WHEN report_path IS NULL THEN 'failed' ELSE 'ready' END WHERE id = ?",
             (run_id,),
         )
+
+
+def _is_busy(row: sqlite3.Row) -> bool:
+    return row["status"] == RUNNING or row["report_status"] == "generating"
+
+
+def _remove_report_file(path: str | None) -> None:
+    if path:
+        Path(path).unlink(missing_ok=True)
+
+
+def delete_run(settings: Settings, run_id: str, user_id: str) -> bool:
+    """Delete one finished run and its PDF. Returns False while work on it is still in progress."""
+    with connect(settings.research_db_path) as db:
+        row = db.execute("SELECT * FROM runs WHERE id = ? AND user_id = ?", (run_id, user_id)).fetchone()
+        if row is None or _is_busy(row):
+            return False
+        db.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+    _remove_report_file(row["report_path"])
+    return True
+
+
+def delete_all_runs(settings: Settings, user_id: str) -> int:
+    """Delete this user's finished runs and PDFs, leaving anything still in progress. Returns the count."""
+    with connect(settings.research_db_path) as db:
+        rows = db.execute(
+            "SELECT id, report_path FROM runs WHERE user_id = ? AND status != ? AND report_status != 'generating'",
+            (user_id, RUNNING),
+        ).fetchall()
+        db.executemany("DELETE FROM runs WHERE id = ?", [(row["id"],) for row in rows])
+    for row in rows:
+        _remove_report_file(row["report_path"])
+    return len(rows)

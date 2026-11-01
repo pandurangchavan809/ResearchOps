@@ -404,3 +404,62 @@ def test_evidence_survives_one_failed_batch(client, user, stubs):
     _, headers = user
     _, events = ask(client, headers)
     assert events[-1][0] == "result"
+
+
+def test_delete_one_run_removes_it_and_its_pdf_but_keeps_credit_used(client, user, stubs):
+    from pathlib import Path
+
+    from app.services import runs
+
+    _, headers = user
+    _, events = ask(client, headers)
+    run_id = events[-1][1]["run_id"]
+    client.post(f"/api/research/{run_id}/report", json={"pages": 1}, headers=headers)
+    me = client.get("/api/auth/me", headers=headers).json()
+    pdf = Path(runs.get_run_row(get_settings(), run_id, me["id"])["report_path"])
+    assert pdf.exists()
+
+    assert client.delete(f"/api/research/{run_id}", headers=headers).status_code == 204
+    assert not pdf.exists()
+    assert client.get(f"/api/research/{run_id}", headers=headers).status_code == 404
+    assert client.delete(f"/api/research/{run_id}", headers=headers).status_code == 404
+    assert me["credits"]["remaining"] == 4
+    assert credits(client, headers)["remaining"] == 4
+
+
+def test_delete_all_only_touches_this_users_finished_runs(client, user, stubs):
+    import time
+
+    from app.db import connect
+    from app.services import runs
+
+    _, headers = user
+    me = client.get("/api/auth/me", headers=headers).json()
+    for _ in range(2):
+        ask(client, headers)
+
+    other = client.post(
+        "/api/auth/register",
+        json={"email": f"other-{time.time_ns()}@example.com", "new_password": "Passw0rd123", "confirm_password": "Passw0rd123"},
+    )
+    other_headers = {"Authorization": f"Bearer {other.json()['access_token']}"}
+    _, other_events = ask(client, other_headers)
+    other_id = other_events[-1][1]["run_id"]
+
+    busy = runs.create_run(get_settings(), me["id"], "A question in progress", "auto", 0)
+    assert client.delete(f"/api/research/{busy}", headers=headers).status_code == 409
+
+    response = client.delete("/api/research", headers=headers)
+    assert response.json() == {"deleted": 2}
+    assert client.get("/api/research", headers=headers).json() == []
+    assert client.get(f"/api/research/{busy}", headers=headers).status_code == 200
+    assert client.get(f"/api/research/{other_id}", headers=other_headers).status_code == 200
+    assert client.delete(f"/api/research/{other_id}", headers=headers).status_code == 404
+
+    with connect(get_settings().research_db_path) as db:
+        db.execute("DELETE FROM runs WHERE id = ?", (busy,))
+
+
+def test_delete_requires_login(client):
+    assert client.delete("/api/research").status_code == 401
+    assert client.delete("/api/research/abc").status_code == 401

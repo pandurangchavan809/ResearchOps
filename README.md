@@ -50,7 +50,7 @@ ResearchOps/
 │   ├── api.ts              HTTP client with silent token refresh
 │   ├── hooks/              useAuth, useApp stores
 │   └── components/         auth, chat, sidebar, ui
-└── data/                   Created at runtime: auth.db, research.db, reports/ (gitignored)
+└── backend/data/           Created at runtime: auth.db, research.db, reports/ (gitignored)
 ```
 
 ## Setup
@@ -66,7 +66,7 @@ Python 3.11+ and Node 20+ are required.
 python -m venv .venv
 .venv\Scripts\activate        # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --reload-dir app
 ```
 
 **Frontend**, from `frontend/`:
@@ -128,4 +128,6 @@ Process environment variables override `.env`.
 
 The model supplies content only. Platypus handles layout: tables repeat their header row and split between rows, and text is capped so that no block can outgrow a page. The title is cleaned and validated, with a fallback derived from the question. **Regenerate** produces a new title and content, and a failed attempt keeps the previous PDF.
 
-See [project.md](./project.md) for scope and [uireaserchop.md](./uireaserchop.md) for the interface handoff.
+**Deleting.** Each history item has a delete button, and **Delete all** clears the history after confirmation. PDFs are removed too. Used credits are not returned, and research still in progress is kept.
+
+See [project.md](./project.md) for scope and [docs/](./docs/) for deployment, design, and backend guides.

@@ -101,6 +101,10 @@ export const api = {
   config: () => json<AppConfig>("/api/config"),
   runs: () => json<RunSummary[]>("/api/research"),
   run: (id: string) => json<RunDetail>(`/api/research/${id}`),
+  deleteRun: async (id: string) => {
+    await send(`/api/research/${id}`, { method: "DELETE" });
+  },
+  deleteAllRuns: () => json<{ deleted: number }>("/api/research", { method: "DELETE" }),
   generateReport: (id: string, pages: number) =>
     json<ReportInfo>(`/api/research/${id}/report`, { method: "POST", body: JSON.stringify({ pages }) }),
 

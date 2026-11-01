@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     login_lock_minutes: int = Field(default=15, ge=1, le=1_440)
 
     # Storage
-    auth_db_path: Path = Path("data/auth.db")
-    research_db_path: Path = Path("data/research.db")
-    report_dir: Path = Path("data/reports")
+    auth_db_path: Path = Path("backend/data/auth.db")
+    research_db_path: Path = Path("backend/data/research.db")
+    report_dir: Path = Path("backend/data/reports")
 
     # Credits
     user_credits: int = Field(default=5, ge=0)
